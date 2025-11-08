@@ -102,7 +102,16 @@ class Simulador:
     print("="*80 + "\n")
 
   def planificar_proceso(self, proceso):
-    self.planificador_procesos.planificar_proceso_entrante(proceso)
+    proceso_preemptado = self.planificador_procesos.planificar_proceso_entrante(proceso)
+    
+    # Si hubo preempción, informar
+    if proceso_preemptado:
+      print(f"\n>>> PREEMPCIÓN: Proceso P{proceso.id} (tiempo restante: {proceso.tiempo_restante}) preempta a P{proceso_preemptado.id} (tiempo restante: {proceso_preemptado.tiempo_restante})")
+      print(f"    Proceso P{proceso_preemptado.id} vuelve a la cola de listo")
+      # El proceso preemptado ya fue agregado a la cola en ejecutar_preempcion()
+      # Mostrar estado de memoria después de la preempción
+      self.memoria.mostrar_estados(tipo_evento=f"preempción: P{proceso.id} preempta a P{proceso_preemptado.id}")
+    
     # Registrar inicio de ejecución cuando el proceso realmente se asigna a la CPU
     if self.cpu.proceso == proceso and proceso.tiempo_inicio_ejecucion is None:
       proceso.registrar_inicio_ejecucion(self.reloj_global)
@@ -156,6 +165,8 @@ class Simulador:
     if self.cpu.esta_libre() and not self.cola_listo.esta_vacio():
       # Seleccionar el proceso con menor tiempo restante (SJF)
       siguiente_proceso = self.cola_listo.obtener_primero_por_tiempo()
+      # Eliminar el proceso de la cola antes de asignarlo a CPU
+      self.cola_listo.eliminar_proceso(siguiente_proceso)
       self.cpu.ejecutar_proceso(siguiente_proceso)
       if siguiente_proceso.tiempo_inicio_ejecucion is None:
         siguiente_proceso.registrar_inicio_ejecucion(self.reloj_global)

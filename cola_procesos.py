@@ -16,7 +16,9 @@ class ColaProcesos(ABC):
     self.procesos.append(proceso)
 
   def eliminar_proceso(self, proceso: Proceso):
-    self.procesos.remove(proceso)
+    """Elimina un proceso de la cola si está presente"""
+    if proceso in self.procesos:
+      self.procesos.remove(proceso)
 
   def esta_vacio(self)-> bool:
     return len(self.procesos) == 0

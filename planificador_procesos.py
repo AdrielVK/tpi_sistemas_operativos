@@ -21,8 +21,23 @@ class PlanificadorProcesos:
     self.cpu = cpu
     
   
-  def ejecutar_preempcion(self, proceso_nuevo):
+  def ejecutar_preempcion(self, proceso_nuevo: Proceso):
+    """Ejecuta la preempción: saca el proceso actual de CPU y pone el nuevo"""
+    proceso_actual = self.cpu.get_proceso_actual()
+    if proceso_actual:
+      # El proceso actual debe volver a la cola de listo
+      # Primero eliminarlo si ya está (para evitar duplicados) y luego agregarlo
+      if proceso_actual in self.cola_procesos_listo.procesos:
+        self.cola_procesos_listo.eliminar_proceso(proceso_actual)
+      self.cola_procesos_listo.encolar(proceso_actual)
+    
+    # Eliminar el proceso nuevo de la cola si está ahí (porque va a CPU)
+    if proceso_nuevo in self.cola_procesos_listo.procesos:
+      self.cola_procesos_listo.eliminar_proceso(proceso_nuevo)
+    
+    # Asignar el nuevo proceso a la CPU
     self.cpu.ejecutar_proceso(proceso_nuevo)
+    return proceso_actual  # Retornar el proceso preemptado para informar
 
   def evaluar_preempcion(self, proceso: Proceso)-> bool:
     proceso_actual = self.cpu.get_proceso_actual()
@@ -31,9 +46,22 @@ class PlanificadorProcesos:
     else:
       return False
   
-  def planificar_proceso_entrante(self, proceso):
+  def planificar_proceso_entrante(self, proceso: Proceso) -> Optional[Proceso]:
+    """
+    Planifica un proceso entrante. Retorna el proceso preemptado si hubo preempción, None en caso contrario.
+    """
     if self.cpu.esta_libre():
+      # Eliminar el proceso de la cola si está ahí (va a CPU)
+      if proceso in self.cola_procesos_listo.procesos:
+        self.cola_procesos_listo.eliminar_proceso(proceso)
       self.cpu.ejecutar_proceso(proceso)
+      return None
     elif self.evaluar_preempcion(proceso):
-      self.ejecutar_preempcion(proceso)
-      #queda en la lista de listo (dentro de la memoria)
+      proceso_preemptado = self.ejecutar_preempcion(proceso)
+      return proceso_preemptado
+    else:
+      # El proceso no se puede ejecutar ahora, se queda en la cola de listo
+      # Asegurar que esté en la cola
+      if proceso not in self.cola_procesos_listo.procesos:
+        self.cola_procesos_listo.encolar(proceso)
+      return None

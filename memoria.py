@@ -40,7 +40,7 @@ class Memoria:
     diferencia: Optional[int] = None
 
     for particion in self.particiones:
-      if particion.esta_libre() and particion.id != 1:
+      if particion.esta_libre() and particion.id != 1 and particion.tamano >= tamanio_proceso:
         if diferencia is None:
           particion_adecuada = particion
           diferencia = (particion.tamano - tamanio_proceso)
