@@ -1,10 +1,11 @@
 from cola_procesos import ColaProcesosListo, ColaProcesosListoSuspendido, ColaProcesosSuspendido, ColaProcesosTerminado
 from cpu import CPU
 from proceso import Proceso
+from typing import Optional
 
 
 class PlanificadorProcesos:
-  proceso_entrante: Proceso | None
+  proceso_entrante: Optional[Proceso]
   cpu: CPU
   cola_procesos_listo: ColaProcesosListo
   cola_procesos_suspendido: ColaProcesosSuspendido
@@ -24,7 +25,8 @@ class PlanificadorProcesos:
     self.cpu.ejecutar_proceso(proceso_nuevo)
 
   def evaluar_preempcion(self, proceso: Proceso)-> bool:
-    if self.cpu.get_proceso_actual().tiempo_restante > proceso.tiempo_restante:
+    proceso_actual = self.cpu.get_proceso_actual()
+    if proceso_actual and proceso_actual.tiempo_restante > proceso.tiempo_restante:
       return True
     else:
       return False
@@ -33,5 +35,5 @@ class PlanificadorProcesos:
     if self.cpu.esta_libre():
       self.cpu.ejecutar_proceso(proceso)
     elif self.evaluar_preempcion(proceso):
-      self.ejecutar_preempcion()
+      self.ejecutar_preempcion(proceso)
       #queda en la lista de listo (dentro de la memoria)

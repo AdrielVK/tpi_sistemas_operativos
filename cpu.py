@@ -1,9 +1,9 @@
-from planificador_procesos import PlanificadorProcesos
 from proceso import Proceso
+from typing import Optional
 
 
 class CPU:
-  proceso: Proceso | None
+  proceso: Optional[Proceso]
   def __init__(self):
     self.proceso = None
   

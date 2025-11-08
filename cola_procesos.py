@@ -1,10 +1,11 @@
 from proceso import Proceso
 from abc import ABC
+from typing import List
 
 class ColaProcesos(ABC):
   id: int
   tipo = ["listo", "suspendido", "terminado", "listo_suspendido", "nuevo"]
-  procesos: list[Proceso]
+  procesos: List[Proceso]
 
   def __init__(self, id, tipo):
     self.id = id
@@ -36,6 +37,10 @@ class ColaProcesosTerminado(ColaProcesos):
 class ColaProcesosListoSuspendido(ColaProcesos):
   def __init__(self):
     super().__init__(4, "listo_suspendido")
+
+class ColaProcesosSuspendido(ColaProcesos):
+  def __init__(self):
+    super().__init__(2, "suspendido")
 
 class ColaProcesosNuevos(ColaProcesos):
   def __init__(self):

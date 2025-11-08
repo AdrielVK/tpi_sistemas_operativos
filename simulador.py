@@ -3,10 +3,7 @@ from cola_procesos import ColaProcesosListo, ColaProcesosListoSuspendido, ColaPr
 from cpu import CPU
 from lector_procesos import LectorProcesos
 from memoria import Memoria
-import particion
 from planificador_procesos import PlanificadorProcesos
-import planificador_procesos
-from proceso import Proceso
 
 
 class Simulador:
@@ -25,7 +22,6 @@ class Simulador:
   def __init__(self):
     self.memoria = Memoria()
     self.cola_listo = ColaProcesosListo()
-    self.procesos_nuevos = []
     self.cola_terminado = ColaProcesosTerminado()
     self.cola_listo_suspendido = ColaProcesosListoSuspendido()
     self.cola_procesos_nuevos = ColaProcesosNuevos()
@@ -106,10 +102,10 @@ class Simulador:
     print("="*80 + "\n")
 
   def planificar_proceso(self, proceso):
-    # Registrar inicio de ejecución cuando se asigna a la CPU
-    if self.cpu.esta_libre() or self.planificador_procesos.evaluar_preempcion(proceso):
-      proceso.registrar_inicio_ejecucion(self.reloj_global)
     self.planificador_procesos.planificar_proceso_entrante(proceso)
+    # Registrar inicio de ejecución cuando el proceso realmente se asigna a la CPU
+    if self.cpu.proceso == proceso and proceso.tiempo_inicio_ejecucion is None:
+      proceso.registrar_inicio_ejecucion(self.reloj_global)
 
   def agregar_proceso_cola_suspendido(self, proceso):
     self.cola_suspendido.encolar(proceso)
@@ -119,48 +115,68 @@ class Simulador:
     
 
   def reubicar_procesos_suspendidos(self):
-    p_suspendidos = self.cola_listo_suspendido
+    p_suspendidos = self.cola_listo_suspendido.procesos.copy()
+    self.cola_listo_suspendido.procesos.clear()
     for p in p_suspendidos:
       if not self.check_multiprogramacion():
         particion = self.memoria.buscar_particion_best_fit(p)
         if particion:
+          print(f"    Reubicando proceso suspendido P{p.id} a partición {particion.id}")
           particion.asignar_proceso(p)
           self.actualizar_cola_listo(p)
           self.planificar_proceso(p)
-          self.memoria.mostrar_estados(tipo_evento="reubicacion de proceso suspendido")
-
+          self.memoria.mostrar_estados(tipo_evento=f"reubicación proceso P{p.id} suspendido")
         else:
           self.cola_listo_suspendido.encolar(p)
+      else:
+        self.cola_listo_suspendido.encolar(p)
 
   def procesar_llegadas(self):
     lista_procesos_entrantes = self.evento_llegada()
     for p in lista_procesos_entrantes:
+      print(f"\n>>> Llegada del proceso P{p.id} (tamaño: {p.tamano}, tiempo irrupción: {p.tiempo_irrupcion})")
       if self.check_multiprogramacion():
+        print(f"    Multiprogramación alcanzada. Proceso P{p.id} agregado a cola de nuevos.")
         self.cola_procesos_nuevos.encolar(p)
+        self.memoria.mostrar_estados(tipo_evento=f"llegada proceso P{p.id} - multiprogramación alcanzada")
       else:
         particion = self.memoria.buscar_particion_best_fit(p)
         if particion:
           particion.asignar_proceso(p)
           self.actualizar_cola_listo(p)
-
           self.planificar_proceso(p)
-          self.memoria.mostrar_estados(tipo_evento="llegada a memoria")
+          self.memoria.mostrar_estados(tipo_evento=f"llegada proceso P{p.id} - asignado a partición {particion.id}")
         else:
+          print(f"    No hay partición disponible. Proceso P{p.id} suspendido.")
           self.cola_listo_suspendido.encolar(p)
+          self.memoria.mostrar_estados(tipo_evento=f"llegada proceso P{p.id} - suspendido (sin espacio)")
             
+  def seleccionar_siguiente_proceso(self):
+    """Selecciona el siguiente proceso de la cola de listo cuando la CPU está libre"""
+    if self.cpu.esta_libre() and not self.cola_listo.esta_vacio():
+      # Seleccionar el proceso con menor tiempo restante (SJF)
+      siguiente_proceso = self.cola_listo.obtener_primero_por_tiempo()
+      self.cpu.ejecutar_proceso(siguiente_proceso)
+      if siguiente_proceso.tiempo_inicio_ejecucion is None:
+        siguiente_proceso.registrar_inicio_ejecucion(self.reloj_global)
+
   def procesar_finalizaciones(self):
     proceso_actual = self.cpu.proceso
     if proceso_actual and proceso_actual.tiempo_restante == 0:
       # Registrar tiempo de finalización
       proceso_actual.registrar_finalizacion(self.reloj_global)
+      print(f"\n>>> Finalización del proceso P{proceso_actual.id}")
       self.cola_terminado.encolar(proceso_actual)
       self.cola_listo.eliminar_proceso(proceso_actual)
       self.cpu.liberar_proceso()
       particion = self.memoria.get_particion_by_proceso(proceso_actual)
       if particion:
         particion.liberar_proceso()
+        print(f"    Partición {particion.id} liberada")
       self.reubicar_procesos_suspendidos()
-      self.memoria.mostrar_estados(tipo_evento="finalizacion")
+      self.memoria.mostrar_estados(tipo_evento=f"finalización proceso P{proceso_actual.id}")
+      # Seleccionar siguiente proceso después de liberar la CPU
+      self.seleccionar_siguiente_proceso()
 
   def avanzar_tiempo(self):
     if not self.cpu.esta_libre():
@@ -175,12 +191,42 @@ class Simulador:
     if self.length_procesos_nuevos > 10:
       raise ValueError('Error, solo se permiten hasta 10 procesos en el archivo de entrada')
 
+    if self.length_procesos_nuevos == 0:
+      print("No hay procesos para ejecutar.")
+      return
+
     # Agregar todos los procesos a la cola de nuevos
     for proceso in self.procesos_nuevos:
       self.cola_procesos_nuevos.encolar(proceso)
 
+    # Condición de salida: cuando todos los procesos han terminado
+    # O cuando no hay más trabajo que hacer (todos en terminado o no hay procesos activos)
+    max_iteraciones = 10000  # Límite de seguridad para evitar bucles infinitos
+    iteracion = 0
+    
     while len(self.cola_terminado.procesos) < self.length_procesos_nuevos:
+      iteracion += 1
+      if iteracion > max_iteraciones:
+        print(f"ADVERTENCIA: Se alcanzó el límite de iteraciones ({max_iteraciones}). Deteniendo simulación.")
+        break
+      
+      # Verificar si hay trabajo pendiente
+      procesos_pendientes = (
+        len(self.cola_procesos_nuevos.procesos) +
+        len(self.cola_listo.procesos) +
+        len(self.cola_listo_suspendido.procesos) +
+        (1 if not self.cpu.esta_libre() else 0)
+      )
+      
+      if procesos_pendientes == 0 and len(self.cola_terminado.procesos) < self.length_procesos_nuevos:
+        # No hay más trabajo pero no todos los procesos terminaron
+        # Esto puede pasar si hay procesos que nunca llegaron
+        print(f"ADVERTENCIA: No hay más trabajo pendiente pero solo {len(self.cola_terminado.procesos)}/{self.length_procesos_nuevos} procesos terminaron.")
+        break
+      
       self.procesar_llegadas()
+      # Seleccionar siguiente proceso si la CPU está libre (antes de procesar finalizaciones)
+      self.seleccionar_siguiente_proceso()
       self.procesar_finalizaciones()
       self.avanzar_tiempo()
     

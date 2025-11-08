@@ -36,7 +36,6 @@ class LectorProcesos:
               tamano=tamano,
               tiempo_llegada=llegada,
               tiempo_irrupcion=irrupcion,
-              tiempo_restante=irrupcion
           )
           procesos.append(proceso)
       #procesos.sort(key=lambda p: p.tiempo_llegada)

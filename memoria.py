@@ -1,8 +1,9 @@
 from particion import Particion
 from proceso import Proceso
+from typing import Optional, List
 
 class Memoria:
-  particiones: list[Particion]
+  particiones: List[Particion]
 
 
   def __init__(self):
@@ -12,12 +13,31 @@ class Memoria:
     particion_3 = Particion(4,50,504,0)
 
     self.particiones = [particion_SO, particion_1, particion_2, particion_3]
-    
+  
+  def get_particion_by_proceso(self, proceso: Proceso):
+    for particion in self.particiones:
+      if particion.proceso and particion.proceso.id == proceso.id:
+        return particion
 
-  def buscar_particion_best_fit(self, proceso:Proceso)-> Particion | None:
+  def mostrar_estados(self, tipo_evento:str):
+    print(f"\n{'='*70}")
+    print(f"ESTADO DE MEMORIA - Evento: {tipo_evento}")
+    print(f"{'='*70}")
+    print(f"{'Particion':<12} {'Direcciones':<15} {'Tamaño':<10} {'Estado':<12} {'Fragmentación':<15}")
+    print(f"{'-'*70}")
+    
+    for p in self.particiones:
+      estado_proceso = f"P{p.proceso.id}" if p.proceso else "LIBRE"
+      direccion_fin = p.direccion_inicio + p.tamano - 1
+      direcciones = f"[{p.direccion_inicio:3d}-{direccion_fin:3d}]"
+      print(f"{'Partición ' + str(p.id):<12} {direcciones:<15} {p.tamano:<10} {estado_proceso:<12} {p.fragmentacion_interna:<15}")
+    
+    print(f"{'='*70}\n")
+
+  def buscar_particion_best_fit(self, proceso:Proceso)-> Optional[Particion]:
     tamanio_proceso = proceso.tamano
-    particion_adecuada:Particion | None = None
-    diferencia:int| None = None
+    particion_adecuada: Optional[Particion] = None
+    diferencia: Optional[int] = None
 
     for particion in self.particiones:
       if particion.esta_libre() and particion.id != 1:

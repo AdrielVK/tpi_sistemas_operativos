@@ -1,11 +1,13 @@
+from typing import Optional
+
 class Proceso:
   id: int
   tamano: int
   tiempo_llegada: int
   tiempo_irrupcion: int
   tiempo_restante:int
-  tiempo_finalizacion: int | None
-  tiempo_inicio_ejecucion: int | None
+  tiempo_finalizacion: Optional[int]
+  tiempo_inicio_ejecucion: Optional[int]
   tiempo_total_ejecucion: int
 
   def __init__(self, id, tamano, tiempo_llegada, tiempo_irrupcion):
@@ -25,10 +27,13 @@ class Proceso:
     pass
 
   def calcular_tiempo_espera(self) -> int:
-    """Calcula el tiempo de espera como: tiempo_retorno - tiempo_irrupcion"""
+    """Calcula el tiempo de espera como: tiempo_retorno - tiempo_irrupcion
+    El tiempo de espera es el tiempo que el proceso no está ejecutándose (en colas)"""
     if self.tiempo_finalizacion is None:
       return 0
     tiempo_retorno = self.calcular_tiempo_retorno()
+    # El tiempo de espera es el tiempo de retorno menos el tiempo de CPU usado
+    # Al finalizar, el tiempo de CPU usado es igual a tiempo_irrupcion
     return tiempo_retorno - self.tiempo_irrupcion
 
   def calcular_tiempo_retorno(self) -> int:
