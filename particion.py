@@ -5,7 +5,7 @@ class Particion:
   tamano: int
   direccion_inicio: int
   fragmentacion_interna: int
-  procesos: list[Proceso]
+  proceso: Proceso | None
 
   def __init__(self, id, tamano, direccion_inicio, fragmentacion_interna):
     self.id = id
@@ -20,10 +20,13 @@ class Particion:
     return self.__str__()
 
   def esta_libre(self) -> bool:
-    pass
+    if self.proceso == None:
+      return True
+    else:
+      return False
 
   def asignar_proceso(self, proceso: Proceso):
-    pass
+    self.proceso = proceso
 
   def liberar_proceso(self):
     pass
