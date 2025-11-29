@@ -228,53 +228,55 @@ class Simulador:
     print("tiempo global:", self.reloj_global)
 
   def ejecutar(self):
-    self.procesos_nuevos = self.lector_procesos.leer_procesos()
-    self.length_procesos_nuevos = len(self.procesos_nuevos)
+    try:
+      self.procesos_nuevos = self.lector_procesos.leer_procesos()
+      self.length_procesos_nuevos = len(self.procesos_nuevos)
 
-    if self.length_procesos_nuevos > 10:
-      raise ValueError('Error, solo se permiten hasta 10 procesos en el archivo de entrada')
+      if self.length_procesos_nuevos > 10:
+          raise ValueError('Error, solo se permiten hasta 10 procesos en el archivo de entrada')
 
-    if self.length_procesos_nuevos == 0:
-      print("No hay procesos para ejecutar.")
-      return
+      if self.length_procesos_nuevos == 0:
+          print("No hay procesos para ejecutar.")
+          return
 
-    # Agregar todos los procesos a la cola de nuevos
-    for proceso in self.procesos_nuevos:
-      self.cola_procesos_nuevos.encolar(proceso)
+      # Agregar todos los procesos a la cola de nuevos
+      for proceso in self.procesos_nuevos:
+          self.cola_procesos_nuevos.encolar(proceso)
 
-    # Condición de salida: cuando todos los procesos han terminado
-    # O cuando no hay más trabajo que hacer (todos en terminado o no hay procesos activos)
-    max_iteraciones = 1000  # Límite de seguridad para evitar bucles infinitos
-    iteracion = 0
-    
-    while len(self.cola_terminado.procesos) < self.length_procesos_nuevos:
-      iteracion += 1
-      if iteracion > max_iteraciones:
-        print(f"ADVERTENCIA: Se alcanzó el límite de iteraciones ({max_iteraciones}). Deteniendo simulación.")
-        break
+      # Condición de salida
+      max_iteraciones = 1000
+      iteracion = 0
+
+      while len(self.cola_terminado.procesos) < self.length_procesos_nuevos:
+          iteracion += 1
+          if iteracion > max_iteraciones:
+              print(f"ADVERTENCIA: Se alcanzó el límite de iteraciones ({max_iteraciones}). Deteniendo simulación.")
+              break
+          
+          procesos_pendientes = (
+              len(self.cola_procesos_nuevos.procesos) +
+              len(self.cola_listo.procesos) +
+              len(self.cola_listo_suspendido.procesos) +
+              (1 if not self.cpu.esta_libre() else 0)
+          )
+          
+          if procesos_pendientes == 0 and len(self.cola_terminado.procesos) < self.length_procesos_nuevos:
+              print(f"ADVERTENCIA: No hay más trabajo pendiente pero solo {len(self.cola_terminado.procesos)}/{self.length_procesos_nuevos} procesos terminaron.")
+              break
+          
+          self.procesar_llegadas()
+          self.procesar_cola_nuevos()
+          self.seleccionar_siguiente_proceso()
+          self.procesar_finalizaciones()
+          self.avanzar_tiempo()
       
-      # Verificar si hay trabajo pendiente
-      procesos_pendientes = (
-        len(self.cola_procesos_nuevos.procesos) +
-        len(self.cola_listo.procesos) +
-        len(self.cola_listo_suspendido.procesos) +
-        (1 if not self.cpu.esta_libre() else 0)
-      )
-      
-      if procesos_pendientes == 0 and len(self.cola_terminado.procesos) < self.length_procesos_nuevos:
-        # No hay más trabajo pero no todos los procesos terminaron
-        # Esto puede pasar si hay procesos que nunca llegaron
-        print(f"ADVERTENCIA: No hay más trabajo pendiente pero solo {len(self.cola_terminado.procesos)}/{self.length_procesos_nuevos} procesos terminaron.")
-        break
-      
-      self.procesar_llegadas()
-      # Procesar cola de nuevos si hay espacio disponible (procesos que quedaron por multiprogramación)
-      self.procesar_cola_nuevos()
-      # Seleccionar siguiente proceso si la CPU está libre (antes de procesar finalizaciones)
-      self.seleccionar_siguiente_proceso()
-      self.procesar_finalizaciones()
-      self.avanzar_tiempo()
-    
-    # Generar informe al finalizar
-    self.generar_informes()
-      
+      # Generar informe al finalizar
+      self.generar_informes()
+
+    except Exception as e:
+        print("\nOcurrió un error inesperado:")
+        print(e)
+
+    finally:
+        # Esto SIEMPRE se ejecuta, sin importar errores
+        input("\nPresiona ENTER para cerrar la simulación...")
