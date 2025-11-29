@@ -28,6 +28,8 @@ class Memoria:
     
     for p in self.particiones:
       estado_proceso = f"P{p.proceso.id}" if p.proceso else "LIBRE"
+      if(p.id == 1):
+        estado_proceso = "SO"
       direccion_fin = p.direccion_inicio + p.tamano - 1
       direcciones = f"[{p.direccion_inicio:3d}-{direccion_fin:3d}]"
       print(f"{'Partición ' + str(p.id):<12} {direcciones:<15} {p.tamano:<10} {estado_proceso:<12} {p.fragmentacion_interna:<15}")

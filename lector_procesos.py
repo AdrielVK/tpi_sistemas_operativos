@@ -25,9 +25,9 @@ class LectorProcesos:
           if len(datos) != 4:
             raise ValueError("Formato inválido de línea: se esperaban 4 columnas")
 
-          id_proceso = int(datos[0])
-          tamano = int(datos[1])
-          llegada = int(datos[2])
+          id_proceso = str(datos[0])
+          llegada = int(datos[1])
+          tamano = int(datos[2])
           irrupcion = int(datos[3])
 
           

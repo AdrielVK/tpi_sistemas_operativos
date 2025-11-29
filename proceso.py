@@ -1,7 +1,7 @@
 from typing import Optional
 
 class Proceso:
-  id: int
+  id: str
   tamano: int
   tiempo_llegada: int
   tiempo_irrupcion: int

@@ -1,6 +1,7 @@
 from calendar import c
 from cola_procesos import ColaProcesosListo, ColaProcesosListoSuspendido, ColaProcesosNuevos, ColaProcesosSuspendido, ColaProcesosTerminado
 from cpu import CPU
+import cpu
 from lector_procesos import LectorProcesos
 from memoria import Memoria
 from planificador_procesos import PlanificadorProcesos
@@ -41,9 +42,11 @@ class Simulador:
 
   
   def check_multiprogramacion(self) -> bool:
-    if (len(self.cola_listo_suspendido.procesos) + len(self.cola_listo.procesos)) >= self.grado_multiprogramacion:
-      return True
-    return False
+    # Contar procesos en memoria (en cola listo + cola listo suspendido + proceso en CPU)
+    procesos_en_memoria = len(self.cola_listo_suspendido.procesos) + len(self.cola_listo.procesos)
+    if not self.cpu.esta_libre():
+      procesos_en_memoria += 1
+    return procesos_en_memoria >= self.grado_multiprogramacion
   
   def evento_llegada(self):
     return self.cola_procesos_nuevos.get_procesos_by_tiempo_llegada(valor_reloj_global=self.reloj_global)
@@ -123,6 +126,32 @@ class Simulador:
     self.cola_listo.encolar(proceso)
     
 
+  def procesar_cola_nuevos(self):
+    """Procesa los procesos en la cola de nuevos cuando hay espacio disponible.
+    Solo procesa procesos cuyo tiempo de llegada ya pasó o coincide con el reloj global."""
+    procesos_nuevos = self.cola_procesos_nuevos.procesos.copy()
+    self.cola_procesos_nuevos.procesos.clear()
+    for p in procesos_nuevos:
+      # Solo procesar procesos cuyo tiempo de llegada ya pasó o coincide con el reloj global
+      if p.tiempo_llegada <= self.reloj_global:
+        if not self.check_multiprogramacion():
+          particion = self.memoria.buscar_particion_best_fit(p)
+          if particion:
+            print(f"    Procesando proceso nuevo P{p.id} desde cola de nuevos - asignado a partición {particion.id}")
+            particion.asignar_proceso(p)
+            self.actualizar_cola_listo(p)
+            self.planificar_proceso(p)
+            self.memoria.mostrar_estados(tipo_evento=f"proceso nuevo P{p.id} asignado desde cola")
+          else:
+            # No hay partición disponible, volver a la cola de nuevos
+            self.cola_procesos_nuevos.encolar(p)
+        else:
+          # Aún hay multiprogramación, volver a la cola de nuevos
+          self.cola_procesos_nuevos.encolar(p)
+      else:
+        # El tiempo de llegada aún no ha llegado, volver a la cola de nuevos
+        self.cola_procesos_nuevos.encolar(p)
+
   def reubicar_procesos_suspendidos(self):
     p_suspendidos = self.cola_listo_suspendido.procesos.copy()
     self.cola_listo_suspendido.procesos.clear()
@@ -184,7 +213,10 @@ class Simulador:
       if particion:
         particion.liberar_proceso()
         print(f"    Partición {particion.id} liberada")
+      # Reubicar procesos suspendidos primero (tienen prioridad)
       self.reubicar_procesos_suspendidos()
+      # Luego procesar la cola de nuevos si hay espacio
+      self.procesar_cola_nuevos()
       self.memoria.mostrar_estados(tipo_evento=f"finalización proceso P{proceso_actual.id}")
       # Seleccionar siguiente proceso después de liberar la CPU
       self.seleccionar_siguiente_proceso()
@@ -212,7 +244,7 @@ class Simulador:
 
     # Condición de salida: cuando todos los procesos han terminado
     # O cuando no hay más trabajo que hacer (todos en terminado o no hay procesos activos)
-    max_iteraciones = 10000  # Límite de seguridad para evitar bucles infinitos
+    max_iteraciones = 1000  # Límite de seguridad para evitar bucles infinitos
     iteracion = 0
     
     while len(self.cola_terminado.procesos) < self.length_procesos_nuevos:
@@ -236,6 +268,8 @@ class Simulador:
         break
       
       self.procesar_llegadas()
+      # Procesar cola de nuevos si hay espacio disponible (procesos que quedaron por multiprogramación)
+      self.procesar_cola_nuevos()
       # Seleccionar siguiente proceso si la CPU está libre (antes de procesar finalizaciones)
       self.seleccionar_siguiente_proceso()
       self.procesar_finalizaciones()
