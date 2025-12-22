@@ -134,11 +134,17 @@ class Simulador:
     for p in procesos_nuevos:
       # Solo procesar procesos cuyo tiempo de llegada ya pasó o coincide con el reloj global
       if p.tiempo_llegada <= self.reloj_global:
+        # Validar tamaño del proceso: rechazar procesos > 250 Kb
+        if p.tamano > 250:
+          print(f"    ERROR: Proceso P{p.id} rechazado. Tamaño ({p.tamano} Kb) excede el límite máximo de 250 Kb.")
+          self.memoria.mostrar_estados(tipo_evento=f"proceso P{p.id} - RECHAZADO (tamaño > 250 Kb)")
+          continue
         if not self.check_multiprogramacion():
           particion = self.memoria.buscar_particion_best_fit(p)
           if particion:
             print(f"    Procesando proceso nuevo P{p.id} desde cola de nuevos - asignado a partición {particion.id}")
             particion.asignar_proceso(p)
+            p.registrar_arribo_memoria(self.reloj_global)
             self.actualizar_cola_listo(p)
             self.planificar_proceso(p)
             self.memoria.mostrar_estados(tipo_evento=f"proceso nuevo P{p.id} asignado desde cola")
@@ -161,6 +167,9 @@ class Simulador:
         if particion:
           print(f"    Reubicando proceso suspendido P{p.id} a partición {particion.id}")
           particion.asignar_proceso(p)
+          # Registrar tiempo de arribo a memoria si aún no está registrado
+          if p.tiempo_arribo_memoria is None:
+            p.registrar_arribo_memoria(self.reloj_global)
           self.actualizar_cola_listo(p)
           self.planificar_proceso(p)
           self.memoria.mostrar_estados(tipo_evento=f"reubicación proceso P{p.id} suspendido")
@@ -173,6 +182,11 @@ class Simulador:
     lista_procesos_entrantes = self.evento_llegada()
     for p in lista_procesos_entrantes:
       print(f"\n>>> Llegada del proceso P{p.id} (tamaño: {p.tamano}, tiempo irrupción: {p.tiempo_irrupcion})")
+      # Validar tamaño del proceso: rechazar procesos > 250 Kb
+      if p.tamano > 250:
+        print(f"    ERROR: Proceso P{p.id} rechazado. Tamaño ({p.tamano} Kb) excede el límite máximo de 250 Kb.")
+        self.memoria.mostrar_estados(tipo_evento=f"llegada proceso P{p.id} - RECHAZADO (tamaño > 250 Kb)")
+        continue
       if self.check_multiprogramacion():
         print(f"    Multiprogramación alcanzada. Proceso P{p.id} agregado a cola de nuevos.")
         self.cola_procesos_nuevos.encolar(p)
@@ -181,6 +195,7 @@ class Simulador:
         particion = self.memoria.buscar_particion_best_fit(p)
         if particion:
           particion.asignar_proceso(p)
+          p.registrar_arribo_memoria(self.reloj_global)
           self.actualizar_cola_listo(p)
           self.planificar_proceso(p)
           self.memoria.mostrar_estados(tipo_evento=f"llegada proceso P{p.id} - asignado a partición {particion.id}")
@@ -248,28 +263,28 @@ class Simulador:
       iteracion = 0
 
       while len(self.cola_terminado.procesos) < self.length_procesos_nuevos:
-          iteracion += 1
-          if iteracion > max_iteraciones:
-              print(f"ADVERTENCIA: Se alcanzó el límite de iteraciones ({max_iteraciones}). Deteniendo simulación.")
-              break
-          
-          procesos_pendientes = (
-              len(self.cola_procesos_nuevos.procesos) +
-              len(self.cola_listo.procesos) +
-              len(self.cola_listo_suspendido.procesos) +
-              (1 if not self.cpu.esta_libre() else 0)
-          )
-          
-          if procesos_pendientes == 0 and len(self.cola_terminado.procesos) < self.length_procesos_nuevos:
-              print(f"ADVERTENCIA: No hay más trabajo pendiente pero solo {len(self.cola_terminado.procesos)}/{self.length_procesos_nuevos} procesos terminaron.")
-              break
-          
-          self.procesar_llegadas()
-          self.procesar_cola_nuevos()
-          self.seleccionar_siguiente_proceso()
-          self.procesar_finalizaciones()
-          self.avanzar_tiempo()
-      
+        iteracion += 1
+        if iteracion > max_iteraciones:
+            print(f"ADVERTENCIA: Se alcanzó el límite de iteraciones ({max_iteraciones}). Deteniendo simulación.")
+            break
+        
+        procesos_pendientes = (
+            len(self.cola_procesos_nuevos.procesos) +
+            len(self.cola_listo.procesos) +
+            len(self.cola_listo_suspendido.procesos) +
+            (1 if not self.cpu.esta_libre() else 0)
+        )
+        
+        if procesos_pendientes == 0 and len(self.cola_terminado.procesos) < self.length_procesos_nuevos:
+            print(f"ADVERTENCIA: No hay más trabajo pendiente pero solo {len(self.cola_terminado.procesos)}/{self.length_procesos_nuevos} procesos terminaron.")
+            break
+        
+        self.procesar_llegadas()
+        self.procesar_cola_nuevos()
+        self.seleccionar_siguiente_proceso()
+        self.procesar_finalizaciones()
+        self.avanzar_tiempo()
+    
       # Generar informe al finalizar
       self.generar_informes()
 
